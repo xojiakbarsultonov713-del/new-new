@@ -1,15 +1,24 @@
 import asyncio
-import requests
+import os
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from google import genai
+from google.genai import types as gemini_types
 
 # --- TOKEN VA SOZLAMALAR ---
 BOT_TOKEN = "8620955124:AAHXLEXPjTyNT5t_FADWc4k_0kXbtWKkVVA"
+# Kalitni Railway Variables bo'limidan avtomatik o'qiydi:
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+# Gemini AI klientini ishga tushiramiz (faqat kalit mavjud bo'lsa)
+ai_client = None
+if GEMINI_API_KEY:
+    ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 # --- ASOSIY MENYU TUGMALARI ---
 def main_menu():
@@ -127,39 +136,31 @@ async def back_to_main_menu(callback: types.CallbackQuery):
     await callback.message.edit_text(text="Quyidagi menyulardan kerakli bo'limni tanlang:", reply_markup=main_menu())
     await callback.answer()
 
-# --- SUN'IY INTELLEKT (MUTLAQO BEPUL VA KALITSIZ) ---
+# --- SUN'IY INTELLEKT (RASMIY GEMINI SPREAD) ---
 @dp.message()
 async def ai_assistant_handler(message: types.Message):
+    if not ai_client:
+        await message.answer("🤖 Sun'iy intellekt tizimi hozircha sozlanmagan. Iltimos adminga murojaat qiling.")
+        return
+
     await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
     
-    # Yuklanish xabarini chiqarib turamiz
-    waiting_msg = await message.answer("🤖 *Sun'iy intellekt o'ylamoqda...*", parse_mode="Markdown")
-    
-    # Ochiq va bepul sun'iy intellekt API'si
-    url = f"https://browsergpts.com"
-    
-    payload = {
-        "messages": [
-            {"role": "system", "content": "Siz 18-sonli maktabning rasmiy AI yordamchisiz. O'zbek tilida chiroyli javob bering."},
-            {"role": "user", "content": message.text}
-        ]
-    }
-    
     try:
-        response = requests.post(url, json=payload, timeout=15)
-        # Kelgan matnli javobni tozalaymiz
-        ai_response = response.text.strip()
-        
-        if ai_response:
-            await waiting_msg.edit_text(ai_response)
-        else:
-            await waiting_msg.edit_text("🤖 Hozircha javob topolmadim, birozdan so'ng qayta so'rab ko'ring.")
+        response = ai_client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=message.text,
+            config=gemini_types.GenerateContentConfig(
+                system_instruction=(
+                    "Siz 18-sonli maktabning rasmiy AI yordamchisiz. O'zbek tilida juda chiroyli va aqlli javob bering."
+                )
+            )
+        )
+        await message.answer(response.text)
     except Exception as e:
-        await waiting_msg.edit_text("🤖 Hozircha AI band, iltimos menyu tugmalaridan foydalanib turing!")
+        await message.answer("🤖 Hozircha AI yuklamani qabul qila olmayapti, menyu tugmalaridan foydalanib turing!")
 
 async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
-
