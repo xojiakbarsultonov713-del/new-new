@@ -181,4 +181,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-GEMINI_API_KEY = "AQAb8RN6KyZE4v-Azo6IipsM_e3L6XwTuwvj_0IBNtstDC_cF8GA"
+GEMINI_API_KEY = "AQ.Ab8RN6JIccvWUljRJVJKZn7Ch14wx9D60ixO0HE7c5y6KJahqQ"
