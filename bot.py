@@ -2,6 +2,7 @@ import asyncio
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 # Tokeningiz o'rnatildi:
 BOT_TOKEN = "8620955124:AAHXLEXPjTyNT5t_FADWc4k_0kXbtWKkVVA"
@@ -44,7 +45,7 @@ async def start_cmd(message: types.Message):
         parse_mode="Markdown"
     )
 
-# --- 8 TA TUGMA BOSILGANDA ISHLaydigan FUNKSIYALAR ---
+# --- TUGMA BOSILGANDA ISHLAYDIGAN FUNKSIYALAR ---
 
 @dp.callback_query(F.data == "news")
 async def cb_news(callback: types.CallbackQuery):
@@ -76,55 +77,29 @@ async def cb_contact(callback: types.CallbackQuery):
     await callback.message.answer("📝 Murojaat qoldirish:\n\nTaklif, shikoyat yoki savollaringiz bo'lsa yuborishingiz mumkin. Tez orada adminlarga yo'naltiriladi.", parse_mode="Markdown")
     await callback.answer()
 
-@dp.callback_query(F.data == "about")
-async def cb_about(callback: types.CallbackQuery):
-    await callback.message.answer("ℹ️ 18-Maktab haqida:\n\nMaktabimiz tarixi, erishgan yutuqlari va asosiy ma'lumotlar.", parse_mode="Markdown")
-    await callback.answer()
-
 @dp.callback_query(F.data == "rating")
 async def cb_rating(callback: types.CallbackQuery):
     await callback.message.answer("📊 Koordinatorlar Reytingi 🏆:\n\nFaol ishtirokchilar va koordinatorlarning onlayn reyting diagrammasi.", parse_mode="Markdown")
     await callback.answer()
-# Istalgan matnli xabarga javob berish uchun handler
-@dp.message()
-async def echo_message(message: types.Message):
-    await message.answer(f"Siz yozdingiz: {message.text}")
-async def main():
-    print("🤖 Bot muvaffaqiyatli ishga tushdi va xabarlarni kutmoqda...")
-    await dp.start_polling(bot)
 
-if __name__ == "__main__":
-    asyncio.run(main())
-    from aiogram import Bot, Dispatcher, types, F
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+# --- MAKTAB HAQIDA ICHKI MENYUSI ---
 
-# --- 1. "Maktab Haqida" tugmasi bosilganda ichki menyuni ko'rsatish ---
-@dp.callback_query(F.data == "maktab_haqida")  # Sizdagi inline tugmaning callback_data'si
+@dp.callback_query(F.data == "about")
 async def about_school_menu(callback: types.CallbackQuery):
     builder = InlineKeyboardBuilder()
-    
-    # Ichki tugmalarni qo'shamiz
     builder.add(types.InlineKeyboardButton(text="ℹ️ Umumiy ma'lumot", callback_data="school_info"))
     builder.add(types.InlineKeyboardButton(text="🏆 Yutuqlarimiz", callback_data="school_achievements"))
     builder.add(types.InlineKeyboardButton(text="📸 Fotogalereya", callback_data="school_gallery"))
     builder.add(types.InlineKeyboardButton(text="⬅️ Bosh menyuga qaytish", callback_data="main_menu"))
-    
-    # Tugmalarni ustma-ust (1 tadan) joylashtirish
     builder.adjust(1) 
     
     text_msg = (
         "🏫 **18-IDUM (Ixtisoslashtirilgan davlat umumta'lim maktabi) haqida bo'limga xush kelibsiz!**\n\n"
         "Quyidagi tugmalardan birini tanlab, maktabimiz haqida batafsil ma'lumot olishingiz mumkin 👇"
     )
-    
-    await callback.message.edit_text(
-        text=text_msg,
-        parse_mode="Markdown",
-        reply_markup=builder.as_markup()
-    )
+    await callback.message.edit_text(text=text_msg, parse_mode="Markdown", reply_markup=builder.as_markup())
     await callback.answer()
 
-# --- 2. "Umumiy ma'lumot" tugmasi uchun handler ---
 @dp.callback_query(F.data == "school_info")
 async def school_general_info(callback: types.CallbackQuery):
     info_text = (
@@ -135,14 +110,11 @@ async def school_general_info(callback: types.CallbackQuery):
         "⏰ **Ish tartibi:** 08:00 - 17:00\n\n"
         "Maktabimiz zamonaviy AKT xonalari, sun'iy intellekt laboratoriyasi va barcha qulayliklarga ega!"
     )
-    
     builder = InlineKeyboardBuilder()
-    builder.add(types.InlineKeyboardButton(text="⬅️ Orqaga", callback_data="maktab_haqida"))
-    
+    builder.add(types.InlineKeyboardButton(text="⬅️ Orqaga", callback_data="about"))
     await callback.message.edit_text(text=info_text, parse_mode="Markdown", reply_markup=builder.as_markup())
     await callback.answer()
 
-# --- 3. "Yutuqlarimiz" tugmasi uchun handler ---
 @dp.callback_query(F.data == "school_achievements")
 async def school_achievements_info(callback: types.CallbackQuery):
     achievements_text = (
@@ -152,9 +124,35 @@ async def school_achievements_info(callback: types.CallbackQuery):
         "⚽️ Sport musobaqalarida maktab jamoasining muvaffaqiyatlari.\n\n"
         "Biz o'quvchilarimiz bilan faxrlanamiz! 🎉"
     )
-    
     builder = InlineKeyboardBuilder()
-    builder.add(types.InlineKeyboardButton(text="⬅️ Orqaga", callback_data="maktab_haqida"))
-    
+    builder.add(types.InlineKeyboardButton(text="⬅️ Orqaga", callback_data="about"))
     await callback.message.edit_text(text=achievements_text, parse_mode="Markdown", reply_markup=builder.as_markup())
     await callback.answer()
+
+@dp.callback_query(F.data == "school_gallery")
+async def school_gallery_info(callback: types.CallbackQuery):
+    gallery_text = "📸 **Maktab fotogalereyasi:**\n\nTez kunda bu yerga maktab hayotidan foto va videolar qo'shiladi."
+    builder = InlineKeyboardBuilder()
+    builder.add(types.InlineKeyboardButton(text="⬅️ Orqaga", callback_data="about"))
+    await callback.message.edit_text(text=gallery_text, parse_mode="Markdown", reply_markup=builder.as_markup())
+    await callback.answer()
+
+@dp.callback_query(F.data == "main_menu")
+async def back_to_main_menu(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        text="Quyidagi menyulardan kerakli bo'limni tanlang:",
+        reply_markup=main_menu()
+    )
+    await callback.answer()
+
+# Istalgan matnli xabarga javob berish uchun handler
+@dp.message()
+async def echo_message(message: types.Message):
+    await message.answer(f"Siz yozdingiz: {message.text}")
+
+async def main():
+    print("🤖 Bot muvaffaqiyatli ishga tushdi va xabarlarni kutmoqda...")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
