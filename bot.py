@@ -95,3 +95,66 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    from aiogram import Bot, Dispatcher, types, F
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+# --- 1. "Maktab Haqida" tugmasi bosilganda ichki menyuni ko'rsatish ---
+@dp.callback_query(F.data == "maktab_haqida")  # Sizdagi inline tugmaning callback_data'si
+async def about_school_menu(callback: types.CallbackQuery):
+    builder = InlineKeyboardBuilder()
+    
+    # Ichki tugmalarni qo'shamiz
+    builder.add(types.InlineKeyboardButton(text="ℹ️ Umumiy ma'lumot", callback_data="school_info"))
+    builder.add(types.InlineKeyboardButton(text="🏆 Yutuqlarimiz", callback_data="school_achievements"))
+    builder.add(types.InlineKeyboardButton(text="📸 Fotogalereya", callback_data="school_gallery"))
+    builder.add(types.InlineKeyboardButton(text="⬅️ Bosh menyuga qaytish", callback_data="main_menu"))
+    
+    # Tugmalarni ustma-ust (1 tadan) joylashtirish
+    builder.adjust(1) 
+    
+    text_msg = (
+        "🏫 **18-IDUM (Ixtisoslashtirilgan davlat umumta'lim maktabi) haqida bo'limga xush kelibsiz!**\n\n"
+        "Quyidagi tugmalardan birini tanlab, maktabimiz haqida batafsil ma'lumot olishingiz mumkin 👇"
+    )
+    
+    await callback.message.edit_text(
+        text=text_msg,
+        parse_mode="Markdown",
+        reply_markup=builder.as_markup()
+    )
+    await callback.answer()
+
+# --- 2. "Umumiy ma'lumot" tugmasi uchun handler ---
+@dp.callback_query(F.data == "school_info")
+async def school_general_info(callback: types.CallbackQuery):
+    info_text = (
+        "ℹ️ **Maktab haqida umumiy ma'lumotlar:**\n\n"
+        "📍 **Manzil:** [Maktab joylashgan ko'cha va tuman nomi]\n"
+        "📞 **Telefon:** +998 (XX) XXX-XX-XX\n"
+        "👤 **Maktab direktori:** [Ism-sharifi]\n"
+        "⏰ **Ish tartibi:** 08:00 - 17:00\n\n"
+        "Maktabimiz zamonaviy AKT xonalari, sun'iy intellekt laboratoriyasi va barcha qulayliklarga ega!"
+    )
+    
+    builder = InlineKeyboardBuilder()
+    builder.add(types.InlineKeyboardButton(text="⬅️ Orqaga", callback_data="maktab_haqida"))
+    
+    await callback.message.edit_text(text=info_text, parse_mode="Markdown", reply_markup=builder.as_markup())
+    await callback.answer()
+
+# --- 3. "Yutuqlarimiz" tugmasi uchun handler ---
+@dp.callback_query(F.data == "school_achievements")
+async def school_achievements_info(callback: types.CallbackQuery):
+    achievements_text = (
+        "🏆 **Maktabimiz yutuqlari:**\n\n"
+        "🥇 Fan olimpiadalarida tuman va viloyat bosqichida faxrli o'rinlar.\n"
+        "🤖 IT va Sun'iy intellekt yo'nalishidagi tanlovlar g'oliblari.\n"
+        "⚽️ Sport musobaqalarida maktab jamoasining muvaffaqiyatlari.\n\n"
+        "Biz o'quvchilarimiz bilan faxrlanamiz! 🎉"
+    )
+    
+    builder = InlineKeyboardBuilder()
+    builder.add(types.InlineKeyboardButton(text="⬅️ Orqaga", callback_data="maktab_haqida"))
+    
+    await callback.message.edit_text(text=achievements_text, parse_mode="Markdown", reply_markup=builder.as_markup())
+    await callback.answer()
