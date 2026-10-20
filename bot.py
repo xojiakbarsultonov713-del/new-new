@@ -3,12 +3,19 @@ from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from google import genai
+from google.genai import types as gemini_types
 
-# Tokeningiz o'rnatildi:
+# --- TOKEN VA SOZLAMALAR ---
 BOT_TOKEN = "8620955124:AAHXLEXPjTyNT5t_FADWc4k_0kXbtWKkVVA"
+# Sizning API kalitingiz bu yerga aniq joylashtirildi:
+GEMINI_API_KEY = "AQAb8RN6KyZE4v-Azo6IipsM_e3L6XwTuwvj_0IBNtstDC_cF8GA" 
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+# Gemini AI klientini ishga tushiramiz
+ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 # --- ASOSIY MENYU TUGMALARI ---
 def main_menu():
@@ -40,6 +47,7 @@ async def start_cmd(message: types.Message):
     await message.answer(
         f"Salom, {message.from_user.first_name}! 👋\n\n"
         f"18-Maktabning rasmiy Smart Botiga xush kelibsiz!\n"
+        f"Menyulardan foydalanishingiz yoki menga maktab va IT bo'yicha to'g'ridan-to'g'ri savol yozishingiz mumkin. Men sizga yordam beruvchi aqlli AI yordamchiman! 🤖\n\n"
         f"Quyidagi menyulardan kerakli bo'limni tanlang:",
         reply_markup=main_menu(),
         parse_mode="Markdown"
@@ -145,14 +153,32 @@ async def back_to_main_menu(callback: types.CallbackQuery):
     )
     await callback.answer()
 
-# Istalgan matnli xabarga javob berish uchun handler
+# --- SUN'IY INTELLEKT (AI) YORDAMCHI FUNKSIYASI ---
 @dp.message()
-async def echo_message(message: types.Message):
-    await message.answer(f"Siz yozdingiz: {message.text}")
+async def ai_assistant_handler(message: types.Message):
+    await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
+    
+    try:
+        response = ai_client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=message.text,
+            config=gemini_types.GenerateContentConfig(
+                system_instruction=(
+                    "Siz 18-sonli ixtisoslashtirilgan davlat umumta'lim maktabining (IDUM) rasmiy botidagi aqlli AI yordamchisiz. "
+                    "Foydalanuvchilarga juda muloyim, hurmat bilan va aniq javob bering. "
+                    "Maktab hayoti, o'qish, matematika, fizika hamda IT & AI to'garaklari haqidagi savollarga qunt bilan javob bering. "
+                    "Doimo chiroyli o'zbek tilida javob qaytaring va kerakli joyda emojilardan foydalaning."
+                )
+            )
+        )
+        await message.answer(response.text)
+    except Exception as e:
+        await message.answer("⚠️ Tizimda kichik texnik uzilish yuz berdi. Iltimos, birozdan so'ng qayta urinib ko'ring.")
 
 async def main():
-    print("🤖 Bot muvaffaqiyatli ishga tushdi va xabarlarni kutmoqda...")
+    print("🤖 Bot muvaffaqiyatli ishga tushdi va AI faollashtirildi...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+GEMINI_API_KEY = "AQAb8RN6KyZE4v-Azo6IipsM_e3L6XwTuwvj_0IBNtstDC_cF8GA"
