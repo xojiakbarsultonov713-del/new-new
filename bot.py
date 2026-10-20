@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 
 # --- TOKEN VA SOZLAMALAR ---
 BOT_TOKEN = "8620955124:AAHXLEXPjTyNT5t_FADWc4k_0kXbtWKkVVA"
-# ⚠️ BU YERGA O'ZINGIZNING SHAXSIY TELEGRAM ID RAQAMINGIZNI YOZING:
+# Shaxsiy Telegram ID raqamingiz muvaffaqiyatli o'rnatildi:
 ADMIN_ID = 5039354291 
 
 bot = Bot(token=BOT_TOKEN)
@@ -114,8 +114,8 @@ async def admin_save_ball(message: types.Message, state: FSMContext):
         
     try:
         text_parts = message.text.split()
-        target_id = int(text_parts[0])  # Indeks to'g'rilandi
-        points = int(text_parts[1])     # Indeks to'g'rilandi
+        target_id = int(text_parts[0])
+        points = int(text_parts[1])
         
         conn = sqlite3.connect("rating.db")
         cursor = conn.cursor()
@@ -234,3 +234,6 @@ async def cb_rating(callback: types.CallbackQuery):
             
     builder = InlineKeyboardBuilder()
     builder.add(types.InlineKeyboardButton(text="⬅️ Bosh menyuga qaytish", callback_data="main_menu"))
+    await callback.message.edit_text(text=rating_text, parse_mode="Markdown", reply_markup=builder.as_markup())
+    await callback.answer()
+
