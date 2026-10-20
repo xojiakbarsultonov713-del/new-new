@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 
 # --- TOKEN VA SOZLAMALAR ---
 BOT_TOKEN = "8620955124:AAHXLEXPjTyNT5t_FADWc4k_0kXbtWKkVVA"
-# ⚠️ BU YERGA O'ZINGIZNING SHAXSIY TELEGRAM ID RAQAMINGIZNY YOZING:
+# ⚠️ BU YERGA O'ZINGIZNING SHAXSIY TELEGRAM ID RAQAMINGIZNI YOZING:
 ADMIN_ID = 999999999 
 
 bot = Bot(token=BOT_TOKEN)
@@ -62,7 +62,6 @@ def main_menu():
 # /start buyrug'i
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
-    # Foydalanuvchini bazaga ro'yxatdan o'tkazamiz
     conn = sqlite3.connect("rating.db")
     cursor = conn.cursor()
     cursor.execute("INSERT OR IGNORE INTO users (telegram_id, fullname, score) VALUES (?, ?, ?)", 
@@ -115,8 +114,8 @@ async def admin_save_ball(message: types.Message, state: FSMContext):
         
     try:
         text_parts = message.text.split()
-        target_id = int(text_parts[0])
-        points = int(text_parts[1])
+        target_id = int(text_parts[0])  # Indeks to'g'rilandi
+        points = int(text_parts[1])     # Indeks to'g'rilandi
         
         conn = sqlite3.connect("rating.db")
         cursor = conn.cursor()
@@ -215,7 +214,7 @@ async def cb_rating(callback: types.CallbackQuery):
     
     rating_text = "📊 **Koordinatorlar Reyting Diagrammasi 🏆**\n\n"
     
-    if not top_users or max([u[1] for u in top_users]) == 0:
+    if not top_users:
         rating_text += "ℹ️ Hozircha hech kimda ball mavjud emas. Admin ball qo'shgandan so'ng diagramma yangilanadi!"
     else:
         max_score = max([u[1] for u in top_users])
@@ -234,4 +233,4 @@ async def cb_rating(callback: types.CallbackQuery):
             rating_text += f"{medal} **{name}**\n   {bar} ({score} ball)\n\n"
             
     builder = InlineKeyboardBuilder()
-
+    builder.add(types.InlineKeyboardButton(text="⬅️ Bosh menyuga qaytish", callback_data="main_menu"))
