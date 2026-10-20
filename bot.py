@@ -1,24 +1,39 @@
 import asyncio
-import os
+import sqlite3
 from aiogram import Bot, Dispatcher, F, types
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from google import genai
-from google.genai import types as gemini_types
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.context import FSMContext
 
 # --- TOKEN VA SOZLAMALAR ---
 BOT_TOKEN = "8620955124:AAHXLEXPjTyNT5t_FADWc4k_0kXbtWKkVVA"
-# Kalitni Railway Variables bo'limidan avtomatik o'qiydi:
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# ⚠️ BU YERGA O'ZINGIZNING SHAXSIY TELEGRAM ID RAQAMINGIZNY YOZING:
+ADMIN_ID = 999999999 
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Gemini AI klientini ishga tushiramiz (faqat kalit mavjud bo'lsa)
-ai_client = None
-if GEMINI_API_KEY:
-    ai_client = genai.Client(api_key=GEMINI_API_KEY)
+# --- MA'LUMOTLAR BAZASI BILAN ISHLASH ---
+def init_db():
+    conn = sqlite3.connect("rating.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            telegram_id INTEGER PRIMARY KEY,
+            fullname TEXT,
+            score INTEGER DEFAULT 0
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# --- ADMIN UCHUN STATE (HOLATLAR) ---
+class AdminStates(StatesGroup):
+    waiting_for_ball = State()
 
 # --- ASOSIY MENYU TUGMALARI ---
 def main_menu():
@@ -47,13 +62,81 @@ def main_menu():
 # /start buyrug'i
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
+    # Foydalanuvchini bazaga ro'yxatdan o'tkazamiz
+    conn = sqlite3.connect("rating.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO users (telegram_id, fullname, score) VALUES (?, ?, ?)", 
+                   (message.from_user.id, message.from_user.full_name, 0))
+    conn.commit()
+    conn.close()
+
+    admin_text = ""
+    if message.from_user.id == ADMIN_ID:
+        admin_text = "\n\n⚙️ Siz adminsiz! Panelni ochish uchun /admin buyrug'ini yozing."
+
     await message.answer(
         f"Salom, {message.from_user.first_name}! 👋\n\n"
         f"18-Maktabning rasmiy Smart Botiga xush kelibsiz!\n"
-        f"Menyulardan foydalanishingiz yoki menga to'g'ridan-to'g'ri savol yozishingiz mumkin. Men sizga yordam beruvchi AI yordamchiman! 🤖",
+        f"Quyidagi menyulardan kerakli bo'limni tanlang:{admin_text}",
         reply_markup=main_menu(),
         parse_mode="Markdown"
     )
+
+# --- ADMIN PANEL FUNKSIYALARI ---
+@dp.message(Command("admin"))
+async def admin_panel(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    
+    builder = InlineKeyboardBuilder()
+    builder.add(types.InlineKeyboardButton(text="➕ Ball qo'shish", callback_data="admin_add_ball"))
+    
+    await message.answer("🛠 **Boshqaruv Paneli:**\n\nKoordinatorlarga ball qo'shish uchun quyidagi tugmani bosing:", reply_markup=builder.as_markup(), parse_mode="Markdown")
+
+@dp.callback_query(F.data == "admin_add_ball")
+async def admin_add_ball_start(callback: types.CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Sizga ruxsat berilmagan!")
+        return
+        
+    await callback.message.answer(
+        "📝 Ball qo'shish uchun foydalanuvchi **ID raqamini** va **ball miqdorini** bo'sh joy tashlab yozing.\n\n"
+        "Misol uchun: `12345678 50`\n"
+        "(Bu o'sha ID egasiga 50 ball qo'shadi, ayirish uchun `-50` yozish mumkin)",
+        parse_mode="Markdown"
+    )
+    await state.set_state(AdminStates.waiting_for_ball)
+    await callback.answer()
+
+@dp.message(AdminStates.waiting_for_ball)
+async def admin_save_ball(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+        
+    try:
+        text_parts = message.text.split()
+        target_id = int(text_parts[0])
+        points = int(text_parts[1])
+        
+        conn = sqlite3.connect("rating.db")
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT fullname, score FROM users WHERE telegram_id = ?", (target_id,))
+        user = cursor.fetchone()
+        
+        if user:
+            new_score = user[1] + points
+            cursor.execute("UPDATE users SET score = ? WHERE telegram_id = ?", (new_score, target_id))
+            conn.commit()
+            await message.answer(f"✅ **{user[0]}** (ID: {target_id}) hisobiga {points} ball qo'shildi!\nYangilangan umumiy ball: {new_score}")
+        else:
+            await message.answer("❌ Bu ID raqamli foydalanuvchi hali botga kirmagan (baza topilmadi).")
+            
+        conn.close()
+    except Exception:
+        await message.answer("❌ Noto'g'ri format kiritildi. Qaytadan urinib ko'ring.\nFormat: `ID_RAQAM BALL` (Masalan: `12345678 50`)")
+        
+    await state.clear()
 
 # --- TUGMA BOSILGANDA ISHLAYDIGAN FUNKSIYALAR ---
 @dp.callback_query(F.data == "news")
@@ -76,9 +159,44 @@ async def cb_it_club(callback: types.CallbackQuery):
     await callback.message.answer("🤖 IT & AI Klubi:\n\n18-maktabning IT va sun'iy intellekt to'garaklari haqida ma'lumot.")
     await callback.answer()
 
+# --- 7 TA YO'NALISH KOORDINATORLARI MATNI ---
 @dp.callback_query(F.data == "coordinators")
 async def cb_coordinators(callback: types.CallbackQuery):
-    await callback.message.answer("👥 IT/AI Koordinatorlar:\n\nMaktabimizdagi mas'ul IT va AI koordinatorlari haqida ma'lumot.")
+    coordinators_text = (
+        "👥 **18-maktab Kengash tuzilmasi va yo'nalish koordinatorlari:**\n\n"
+        "🎓 **Maktab maslahatchisi:**\n"
+        "👤 [Ism Familiya] — @[username]\n\n"
+        "👑 **Kelajak lideri (Kengash rahbari):**\n"
+        "👤 [Ism Familiya] — @[username]\n\n"
+        "───────────────────\n\n"
+        "📘 1. **Ta'lim koordinatorli:**\n"
+        "👤 [Ism Familiya] — @[username]\n"
+        "*Ta'lim jarayonlari va o'quvchilar takomilini muvofiqlashtiradi.*\n\n"
+        "💻 2. **IT va sun'iy intellekt koordinatorli:**\n"
+        "👤 [Ism Familiya] — @[username]\n"
+        "*Raqamli yechimlar va innovatsiyalarni rivojlantiradi.*\n\n"
+        "📷 3. **Media koordinatorli:**\n"
+        "👤 [Ism Familiya] — @[username]\n"
+        "*Maktab hayotini ommalashtiradi, axborot siyosatini yuritadi.*\n\n"
+        "🎭 4. **Madaniyat koordinatorli:**\n"
+        "👤 [Ism Familiya] — @[username]\n"
+        "*Ijodiy loyihalar va madaniy tadbirlarni tashkil etadi.*\n\n"
+        "🏃‍♂️ 5. **Sport koordinatorli:**\n"
+        "👤 [Ism Familiya] — @[username]\n"
+        "*Sog'lom turmush tarzini targ'ib etadi, sport tadbirlari o'tkazadi.*\n\n"
+        "🌱 6. **Ekologiya koordinatorli:**\n"
+        "👤 [Ism Familiya] — @[username]\n"
+        "*Tabiatni asrash va ekologik loyihalarni muvofiqlashtiradi.*\n\n"
+        "🤝 7. **Ijtimoiy tashabbus koordinatorli:**\n"
+        "👤 [Ism Familiya] — @[username]\n"
+        "*Volontyorlik va ijtimoiy loyihalarni tashkil etadi.*\n\n"
+        "───────────────────\n"
+        "👥 **Sinf vakillari:** O'quvchilar fikrini yetkazadi va takliflarni ilgari suradi.\n"
+        "🏰 **Klublar:** Qiziqishlar asosidagi faoliyatni amalga oshiradi."
+    )
+    builder = InlineKeyboardBuilder()
+    builder.add(types.InlineKeyboardButton(text="⬅️ Bosh menyuga qaytish", callback_data="main_menu"))
+    await callback.message.edit_text(text=coordinators_text, parse_mode="Markdown", reply_markup=builder.as_markup())
     await callback.answer()
 
 @dp.callback_query(F.data == "contact")
@@ -86,81 +204,34 @@ async def cb_contact(callback: types.CallbackQuery):
     await callback.message.answer("📝 Murojaat qoldirish:\n\nTaklif, shikoyat yoki savollaringiz bo'lsa yuborishingiz mumkin.")
     await callback.answer()
 
+# --- DINAMIK REYTING DIAGRAMMASI FUNKSIYASI ---
 @dp.callback_query(F.data == "rating")
 async def cb_rating(callback: types.CallbackQuery):
-    await callback.message.answer("📊 Koordinatorlar Reytingi 🏆:\n\nFaol ishtirokchilar va koordinatorlarning onlayn reyting diagrammasi.")
-    await callback.answer()
-
-# --- MAKTAB HAQIDA ICHKI MENYUSI ---
-@dp.callback_query(F.data == "about")
-async def about_school_menu(callback: types.CallbackQuery):
-    builder = InlineKeyboardBuilder()
-    builder.add(types.InlineKeyboardButton(text="ℹ️ Umumiy ma'lumot", callback_data="school_info"))
-    builder.add(types.InlineKeyboardButton(text="🏆 Yutuqlarimiz", callback_data="school_achievements"))
-    builder.add(types.InlineKeyboardButton(text="📸 Fotogalereya", callback_data="school_gallery"))
-    builder.add(types.InlineKeyboardButton(text="⬅️ Bosh menyuga qaytish", callback_data="main_menu"))
-    builder.adjust(1) 
+    conn = sqlite3.connect("rating.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT fullname, score FROM users ORDER BY score DESC LIMIT 10")
+    top_users = cursor.fetchall()
+    conn.close()
     
-    await callback.message.edit_text(
-        text="🏫 **18-IDUM haqida bo'limga xush kelibsiz!**\n\nQuyidagi tugmalardan birini tanlang:",
-        parse_mode="Markdown",
-        reply_markup=builder.as_markup()
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data == "school_info")
-async def school_general_info(callback: types.CallbackQuery):
-    info_text = "ℹ️ **Maktab haqida umumiy ma'lumotlar:**\n\n📍 **Manzil:** Maktab ko'chasi\n📞 **Telefon:** +998 (XX) XXX-XX-XX"
-    builder = InlineKeyboardBuilder()
-    builder.add(types.InlineKeyboardButton(text="⬅️ Orqaga", callback_data="about"))
-    await callback.message.edit_text(text=info_text, parse_mode="Markdown", reply_markup=builder.as_markup())
-    await callback.answer()
-
-@dp.callback_query(F.data == "school_achievements")
-async def school_achievements_info(callback: types.CallbackQuery):
-    achievements_text = "🏆 **Maktabimiz yutuqlari:**\n\n🥇 Fan olimpiadalari va IT tanlovlar g'oliblari."
-    builder = InlineKeyboardBuilder()
-    builder.add(types.InlineKeyboardButton(text="⬅️ Orqaga", callback_data="about"))
-    await callback.message.edit_text(text=achievements_text, parse_mode="Markdown", reply_markup=builder.as_markup())
-    await callback.answer()
-
-@dp.callback_query(F.data == "school_gallery")
-async def school_gallery_info(callback: types.CallbackQuery):
-    builder = InlineKeyboardBuilder()
-    builder.add(types.InlineKeyboardButton(text="⬅️ Orqaga", callback_data="about"))
-    await callback.message.edit_text(text="📸 Tez kunda foto va videolar qo'shiladi.", reply_markup=builder.as_markup())
-    await callback.answer()
-
-@dp.callback_query(F.data == "main_menu")
-async def back_to_main_menu(callback: types.CallbackQuery):
-    await callback.message.edit_text(text="Quyidagi menyulardan kerakli bo'limni tanlang:", reply_markup=main_menu())
-    await callback.answer()
-
-# --- SUN'IY INTELLEKT (RASMIY GEMINI SPREAD) ---
-@dp.message()
-async def ai_assistant_handler(message: types.Message):
-    if not ai_client:
-        await message.answer("🤖 Sun'iy intellekt tizimi hozircha sozlanmagan. Iltimos adminga murojaat qiling.")
-        return
-
-    await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
+    rating_text = "📊 **Koordinatorlar Reyting Diagrammasi 🏆**\n\n"
     
-    try:
-        response = ai_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=message.text,
-            config=gemini_types.GenerateContentConfig(
-                system_instruction=(
-                    "Siz 18-sonli maktabning rasmiy AI yordamchisiz. O'zbek tilida juda chiroyli va aqlli javob bering."
-                )
-            )
-        )
-        await message.answer(response.text)
-    except Exception as e:
-        await message.answer("🤖 Hozircha AI yuklamani qabul qila olmayapti, menyu tugmalaridan foydalanib turing!")
+    if not top_users or max([u[1] for u in top_users]) == 0:
+        rating_text += "ℹ️ Hozircha hech kimda ball mavjud emas. Admin ball qo'shgandan so'ng diagramma yangilanadi!"
+    else:
+        max_score = max([u[1] for u in top_users])
+        if max_score == 0: max_score = 1
+        
+        for index, user in enumerate(top_users, start=1):
+            name = user[0]
+            score = user[1]
+            
+            bar_length = int((score / max_score) * 8)
+            bar = "🟩" * bar_length if bar_length > 0 else "⬜️"
+            
+            medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+            medal = medals.get(index, "🔹")
+            
+            rating_text += f"{medal} **{name}**\n   {bar} ({score} ball)\n\n"
+            
+    builder = InlineKeyboardBuilder()
 
-async def main():
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
